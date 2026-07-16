@@ -1,0 +1,42 @@
+services:
+  gateway:
+    volumes:
+      - gateway-e2e-data:/var/lib/ai-gateway
+      - ../configs/bootstrap.e2e.yaml:/etc/ai-gateway/bootstrap.yaml:ro
+      - ../configs/gateway.e2e.yaml:/etc/ai-gateway/gateway.yaml:ro
+    depends_on:
+      mock-provider:
+        condition: service_healthy
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
+  mock-provider:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: mock-provider
+    image: ai-gateway-mock-provider:0.1.0
+    command:
+      - --listen=0.0.0.0:18080
+    ports:
+      - "127.0.0.1:18080:18080"
+    healthcheck:
+      test:
+        - CMD
+        - /app/mock-provider
+        - --healthcheck
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
+
+volumes:
+  gateway-e2e-data:
+
+secrets:
+  ai_gateway_master_key:
+    file: ./secrets/ai_gateway_master_key.example
+  openai_api_key:
+    file: ./secrets/openai_api_key.example
+  dashscope_api_key:
+    file: ./secrets/dashscope_api_key.example

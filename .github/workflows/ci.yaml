@@ -1,0 +1,91 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: 构建、单测与覆盖率
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+
+      - name: 安装 Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: 下载依赖
+        run: go mod download
+
+      - name: 检查格式
+        shell: bash
+        run: |
+          find . -type f -name '*.go' -not -path './.git/*' -print0 | xargs -0 gofmt -w
+          git diff --exit-code
+
+      - name: 静态检查
+        run: go vet ./...
+
+      - name: 构建
+        run: go build ./cmd/...
+
+      - name: 竞态测试
+        run: go test -race -count=1 ./...
+
+      - name: 覆盖率门禁
+        run: make coverage
+
+      - name: 保存覆盖率报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-coverage
+          path: coverage.out
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mock-e2e:
+    name: Docker Compose Mock E2E
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+
+      - name: 安装 Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: 下载依赖
+        run: go mod download
+
+      - name: 校验 Compose 配置
+        run: make compose-config
+
+      - name: 执行 Mock E2E
+        run: make e2e
+
+      - name: 保存 Compose 日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mock-e2e-compose-logs
+          path: build-logs/compose-e2e.log
+          if-no-files-found: ignore
+          retention-days: 14

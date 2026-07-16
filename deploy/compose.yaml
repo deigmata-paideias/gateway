@@ -1,0 +1,56 @@
+name: ai-gateway
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: gateway
+    image: ai-gateway:0.1.0
+    command:
+      - serve
+      - --bootstrap-config=/etc/ai-gateway/bootstrap.yaml
+    ports:
+      - "8080:8080"
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - gateway-data:/var/lib/ai-gateway
+      - ../configs/bootstrap.compose.yaml:/etc/ai-gateway/bootstrap.yaml:ro
+      - ../configs/gateway.example.yaml:/etc/ai-gateway/gateway.yaml:ro
+    secrets:
+      - ai_gateway_master_key
+      - openai_api_key
+      - dashscope_api_key
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - /app/ai-gateway
+        - healthcheck
+        - --url=http://127.0.0.1:8081/readyz
+        - --timeout=2s
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.153.0
+    command:
+      - --config=/etc/otelcol/config.yaml
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    restart: unless-stopped
+
+volumes:
+  gateway-data:
+
+secrets:
+  ai_gateway_master_key:
+    file: ./secrets/ai_gateway_master_key
+  openai_api_key:
+    file: ./secrets/openai_api_key
+  dashscope_api_key:
+    file: ./secrets/dashscope_api_key

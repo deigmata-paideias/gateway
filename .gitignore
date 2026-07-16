@@ -1,0 +1,23 @@
+# 构建与测试制品
+/bin/
+/build/
+/coverage.out
+/build-logs/
+
+# 本地运行数据
+*.db
+*.db-shm
+*.db-wal
+
+# 密钥与环境文件
+.env
+.env.*
+*.key
+*.pem
+/deploy/secrets/*
+!/deploy/secrets/*.example
+
+# 编辑器与系统文件
+.DS_Store
+.idea/
+.vscode/

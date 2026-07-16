@@ -1,0 +1,559 @@
+openapi: 3.1.0
+info:
+  title: AI Gateway API
+  version: 0.1.0
+  description: OpenAI 风格的数据面、动态管理面，以及 YAML 配置 Schema。
+servers:
+  - url: http://localhost:8080
+    description: 数据面
+  - url: http://localhost:9090
+    description: 管理面
+
+paths:
+  /v1/chat/completions:
+    post:
+      operationId: createChatCompletion
+      security: [{gatewayToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /v1/responses:
+    post:
+      operationId: createResponse
+      security: [{gatewayToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResponsesRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /v1/images/generations:
+    post:
+      operationId: generateImage
+      security: [{gatewayToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ImageRequest'}
+      responses:
+        '200':
+          description: 统一 Base64 图片响应
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /v1/models:
+    get:
+      operationId: listModels
+      security: [{gatewayToken: []}]
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /v1/token:
+    get:
+      operationId: getCurrentToken
+      security: [{gatewayToken: []}]
+      responses:
+        '200':
+          description: 当前 Gateway Token 元数据
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GatewayToken'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/config:
+    get:
+      operationId: getGatewayConfig
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+    put:
+      operationId: replaceGatewayConfig
+      parameters:
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GatewayConfig'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/backends:
+    get:
+      operationId: listBackends
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+  /admin/v1/backends/{backend_id}:
+    parameters:
+      - {$ref: '#/components/parameters/BackendID'}
+    put:
+      operationId: putBackend
+      parameters:
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Backend'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteBackend
+      parameters:
+        - {$ref: '#/components/parameters/IfMatch'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/routes/{route_id}/active-backend:
+    put:
+      operationId: switchActiveBackend
+      parameters:
+        - {$ref: '#/components/parameters/RouteID'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [backend_id]
+              properties:
+                backend_id: {$ref: '#/components/schemas/ResourceID'}
+              additionalProperties: false
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/credentials:
+    get:
+      operationId: listCredentials
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+    post:
+      operationId: createCredential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CredentialCreate'}
+      responses:
+        '201': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/credentials/{credential_id}:
+    parameters:
+      - {$ref: '#/components/parameters/CredentialID'}
+    get:
+      operationId: getCredential
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteCredential
+      responses:
+        '204': {description: 已删除}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/credentials/{credential_id}/rotate:
+    post:
+      operationId: rotateCredential
+      parameters:
+        - {$ref: '#/components/parameters/CredentialID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SecretInput'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/tokens:
+    get:
+      operationId: listGatewayTokens
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+    post:
+      operationId: createGatewayToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 128}
+                expires_at: {type: [integer, 'null'], format: int64}
+              additionalProperties: false
+      responses:
+        '201': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/tokens/{token_id}:
+    parameters:
+      - {$ref: '#/components/parameters/TokenID'}
+    get:
+      operationId: getGatewayToken
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteGatewayToken
+      responses:
+        '204': {description: 已删除}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/tokens/{token_id}/secret:
+    get:
+      operationId: revealGatewayToken
+      parameters:
+        - {$ref: '#/components/parameters/TokenID'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/tokens/{token_id}/rotate:
+    post:
+      operationId: rotateGatewayToken
+      parameters:
+        - {$ref: '#/components/parameters/TokenID'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/tokens/{token_id}/revoke:
+    post:
+      operationId: revokeGatewayToken
+      parameters:
+        - {$ref: '#/components/parameters/TokenID'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/tokens/{token_id}/usage:
+    get:
+      operationId: getGatewayTokenUsage
+      parameters:
+        - {$ref: '#/components/parameters/TokenID'}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/audits:
+    get:
+      operationId: listAudits
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+  /admin/v1/audits/{audit_id}:
+    get:
+      operationId: getAudit
+      parameters:
+        - name: audit_id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {$ref: '#/components/responses/ProviderResponse'}
+        default: {$ref: '#/components/responses/Error'}
+
+components:
+  securitySchemes:
+    gatewayToken:
+      type: http
+      scheme: bearer
+      bearerFormat: agw_opaque
+
+  parameters:
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string, pattern: '^"?[1-9][0-9]*"?$'}
+    BackendID:
+      name: backend_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceID'}
+    RouteID:
+      name: route_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceID'}
+    CredentialID:
+      name: credential_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceID'}
+    TokenID:
+      name: token_id
+      in: path
+      required: true
+      schema: {type: string, pattern: '^gtok_[a-z0-9]+$'}
+
+  responses:
+    ProviderResponse:
+      description: 成功响应；具体字段与所调用的 OpenAI 风格接口一致。
+      content:
+        application/json:
+          schema: {type: object, additionalProperties: true}
+        text/event-stream:
+          schema: {type: string}
+    Error:
+      description: OpenAI 风格错误
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+
+  schemas:
+    ResourceID:
+      type: string
+      pattern: '^[a-z][a-z0-9-]{0,62}$'
+    Duration:
+      type: string
+      pattern: '^[0-9]+(ns|us|µs|ms|s|m|h)$'
+    Provider:
+      type: string
+      enum: [openai, dashscope]
+    Operation:
+      type: string
+      enum: [chat, responses, image]
+
+    ChatRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model: {type: string, minLength: 1}
+        messages: {type: array, minItems: 1, items: {type: object, additionalProperties: true}}
+        stream: {type: boolean, default: false}
+      additionalProperties: true
+    ResponsesRequest:
+      type: object
+      required: [model, input]
+      properties:
+        model: {type: string, minLength: 1}
+        input: {}
+        instructions: {type: string}
+        previous_response_id: {type: string}
+        max_output_tokens: {type: integer, minimum: 1}
+        stream: {type: boolean, default: false}
+        background: {const: false}
+      additionalProperties: true
+    ImageRequest:
+      type: object
+      required: [model, prompt]
+      properties:
+        model: {type: string, minLength: 1}
+        prompt: {type: string, minLength: 1, maxLength: 32000}
+        n: {type: integer, minimum: 1, maximum: 4}
+        size: {type: string}
+        quality: {type: string}
+      additionalProperties: true
+    ImageResponse:
+      type: object
+      required: [created, data]
+      properties:
+        created: {type: integer, format: int64}
+        data:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [b64_json]
+            properties:
+              b64_json: {type: string, contentEncoding: base64}
+              revised_prompt: {type: string}
+            additionalProperties: false
+
+    BootstrapConfig:
+      type: object
+      required: [api_version, kind, listeners, storage, secrets, initial_gateway_config, health]
+      properties:
+        api_version: {const: gateway.ai/v1alpha2}
+        kind: {const: BootstrapConfig}
+        listeners:
+          type: object
+          required: [data, admin, operations]
+          properties:
+            data: {type: string}
+            admin: {type: string}
+            operations: {type: string}
+          additionalProperties: false
+        storage:
+          type: object
+          required: [driver, path, max_open_connections, busy_timeout, journal_mode, synchronous]
+          properties:
+            driver: {const: sqlite}
+            path: {type: string, minLength: 1}
+            max_open_connections: {type: integer, minimum: 1, maximum: 32}
+            busy_timeout: {$ref: '#/components/schemas/Duration'}
+            journal_mode: {const: WAL}
+            synchronous: {const: FULL}
+          additionalProperties: false
+        secrets:
+          type: object
+          required: [master_key_file, master_key_version]
+          properties:
+            master_key_file: {type: string, minLength: 1}
+            master_key_version: {type: integer, minimum: 1}
+          additionalProperties: false
+        credential_imports:
+          type: array
+          items: {$ref: '#/components/schemas/CredentialImport'}
+        initial_gateway_config: {type: string, minLength: 1}
+        observability:
+          type: object
+          properties:
+            otel: {$ref: '#/components/schemas/OTelConfig'}
+          additionalProperties: false
+        health:
+          type: object
+          required: [ready_timeout, shutdown_grace_period]
+          properties:
+            ready_timeout: {$ref: '#/components/schemas/Duration'}
+            shutdown_grace_period: {$ref: '#/components/schemas/Duration'}
+          additionalProperties: false
+      additionalProperties: false
+
+    CredentialImport:
+      type: object
+      required: [credential_id, provider, source_file, import_policy]
+      properties:
+        credential_id: {$ref: '#/components/schemas/ResourceID'}
+        provider: {$ref: '#/components/schemas/Provider'}
+        source_file: {type: string, minLength: 1}
+        import_policy: {const: if_missing}
+      additionalProperties: false
+    OTelConfig:
+      type: object
+      required: [enabled, service_name, service_version, otlp_http_endpoint, insecure, metric_export_interval, trace_sample_ratio]
+      properties:
+        enabled: {type: boolean}
+        service_name: {type: string, minLength: 1}
+        service_version: {type: string, minLength: 1}
+        otlp_http_endpoint: {type: string, format: uri}
+        insecure: {type: boolean}
+        metric_export_interval: {$ref: '#/components/schemas/Duration'}
+        trace_sample_ratio: {type: number, minimum: 0, maximum: 1}
+        cardinality_limit: {type: integer, minimum: 1}
+      additionalProperties: false
+
+    GatewayConfig:
+      type: object
+      required: [api_version, kind, backends, routes, audit, responses, limits]
+      properties:
+        api_version: {const: gateway.ai/v1alpha2}
+        kind: {const: GatewayConfig}
+        backends: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/Backend'}}
+        routes: {type: array, minItems: 3, maxItems: 100, items: {$ref: '#/components/schemas/Route'}}
+        audit: {$ref: '#/components/schemas/AuditConfig'}
+        responses:
+          type: object
+          required: [binding_retention]
+          properties:
+            binding_retention: {$ref: '#/components/schemas/Duration'}
+          additionalProperties: false
+        limits: {$ref: '#/components/schemas/Limits'}
+      additionalProperties: false
+    Backend:
+      type: object
+      required: [id, provider, base_url, credential_id, capabilities, timeouts]
+      properties:
+        id: {$ref: '#/components/schemas/ResourceID'}
+        provider: {$ref: '#/components/schemas/Provider'}
+        base_url: {type: string, format: uri}
+        credential_id: {$ref: '#/components/schemas/ResourceID'}
+        capabilities:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Operation'}
+        timeouts:
+          type: object
+          required: [request, stream_idle]
+          properties:
+            request: {$ref: '#/components/schemas/Duration'}
+            stream_idle: {$ref: '#/components/schemas/Duration'}
+          additionalProperties: false
+      additionalProperties: false
+    Route:
+      type: object
+      required: [id, operation, model_alias, active_backend, targets]
+      properties:
+        id: {$ref: '#/components/schemas/ResourceID'}
+        operation: {$ref: '#/components/schemas/Operation'}
+        model_alias: {type: string, minLength: 1}
+        active_backend: {$ref: '#/components/schemas/ResourceID'}
+        targets:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [backend_id, upstream_model]
+            properties:
+              backend_id: {$ref: '#/components/schemas/ResourceID'}
+              upstream_model: {type: string, minLength: 1}
+            additionalProperties: false
+      additionalProperties: false
+    AuditConfig:
+      type: object
+      required: [retention, cleanup_interval, abandoned_after, cleanup_batch_size]
+      properties:
+        retention: {$ref: '#/components/schemas/Duration'}
+        cleanup_interval: {$ref: '#/components/schemas/Duration'}
+        abandoned_after: {$ref: '#/components/schemas/Duration'}
+        cleanup_batch_size: {type: integer, minimum: 1, maximum: 10000}
+      additionalProperties: false
+    Limits:
+      type: object
+      required: [request_body_bytes, max_backends, max_routes, chat_concurrency, responses_concurrency, image_concurrency, images_per_request, image_raw_bytes_per_response]
+      properties:
+        request_body_bytes: {type: integer, minimum: 1024}
+        max_backends: {type: integer, minimum: 1, maximum: 100}
+        max_routes: {type: integer, minimum: 3, maximum: 100}
+        chat_concurrency: {type: integer, minimum: 1}
+        responses_concurrency: {type: integer, minimum: 1}
+        image_concurrency: {type: integer, minimum: 1}
+        images_per_request: {type: integer, minimum: 1, maximum: 10}
+        image_raw_bytes_per_response: {type: integer, minimum: 1024}
+      additionalProperties: false
+    CredentialCreate:
+      type: object
+      required: [id, provider, name, secret]
+      properties:
+        id: {$ref: '#/components/schemas/ResourceID'}
+        provider: {$ref: '#/components/schemas/Provider'}
+        name: {type: string, minLength: 1, maxLength: 128}
+        secret: {type: string, minLength: 1, maxLength: 16384}
+      additionalProperties: false
+    SecretInput:
+      type: object
+      required: [secret]
+      properties:
+        secret: {type: string, minLength: 1, maxLength: 16384}
+      additionalProperties: false
+    GatewayToken:
+      type: object
+      required: [id, name, status, created_at, updated_at]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        status: {type: string, enum: [active, revoked]}
+        created_at: {type: integer, format: int64}
+        updated_at: {type: integer, format: int64}
+        expires_at: {type: [integer, 'null'], format: int64}
+        last_used_at: {type: [integer, 'null'], format: int64}
+      additionalProperties: false
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message, type, code]
+          properties:
+            message: {type: string}
+            type: {const: gateway_error}
+            param: {type: ['null', string]}
+            code: {type: string}
+          additionalProperties: false
+      additionalProperties: false

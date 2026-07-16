@@ -1,0 +1,68 @@
+api_version: gateway.ai/v1alpha2
+kind: GatewayConfig
+
+backends:
+  - id: openai-mock
+    provider: openai
+    base_url: http://mock-provider:18080/openai/v1
+    credential_id: openai-primary
+    capabilities: [chat, responses, image]
+    timeouts:
+      request: 10s
+      stream_idle: 5s
+  - id: dashscope-mock
+    provider: dashscope
+    base_url: http://mock-provider:18080/dashscope/v1
+    credential_id: dashscope-primary
+    capabilities: [chat, responses, image]
+    timeouts:
+      request: 10s
+      stream_idle: 5s
+
+routes:
+  - id: chat-default
+    operation: chat
+    model_alias: chat-default
+    active_backend: openai-mock
+    targets:
+      - backend_id: openai-mock
+        upstream_model: mock-chat-openai
+      - backend_id: dashscope-mock
+        upstream_model: mock-chat-dashscope
+  - id: responses-default
+    operation: responses
+    model_alias: responses-default
+    active_backend: openai-mock
+    targets:
+      - backend_id: openai-mock
+        upstream_model: mock-responses-openai
+      - backend_id: dashscope-mock
+        upstream_model: mock-responses-dashscope
+  - id: image-default
+    operation: image
+    model_alias: image-default
+    active_backend: openai-mock
+    targets:
+      - backend_id: openai-mock
+        upstream_model: mock-image-openai
+      - backend_id: dashscope-mock
+        upstream_model: mock-image-dashscope
+
+audit:
+  retention: 24h
+  cleanup_interval: 1h
+  abandoned_after: 1m
+  cleanup_batch_size: 100
+
+responses:
+  binding_retention: 168h
+
+limits:
+  request_body_bytes: 2097152
+  max_backends: 10
+  max_routes: 10
+  chat_concurrency: 16
+  responses_concurrency: 16
+  image_concurrency: 4
+  images_per_request: 4
+  image_raw_bytes_per_response: 1048576
