@@ -25,6 +25,8 @@ type Options struct {
 	MaxImageBytes int64
 }
 
+const userAgent = "ai-gateway/0.1.0"
+
 type Client struct {
 	client        openaisdk.Client
 	httpClient    *http.Client
@@ -46,6 +48,7 @@ func New(options Options) (*Client, error) {
 		option.WithBaseURL(baseURL),
 		option.WithHTTPClient(options.HTTPClient),
 		option.WithMaxRetries(0),
+		option.WithHeader("User-Agent", userAgent),
 	)
 	return &Client{
 		client: client, httpClient: provider.ImageHTTPClient(options.HTTPClient, baseURL),

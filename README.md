@@ -81,5 +81,6 @@ GitHub Actions 是本项目的标准验证环境：
 - [详细设计 01](docs/design/design_01.md)
 - [详细设计 02](docs/design/design_02.md)
 - [实施记录 01](docs/implementation/implementation_01.md)
+- [实施记录 02](docs/implementation/implementation_02.md)
 
 当前版本采用“无迁移，直接替换”策略，不提供旧 bbolt 数据迁移。SQLite 只支持单个网关实例写入同一文件，不应放在网络文件系统上。

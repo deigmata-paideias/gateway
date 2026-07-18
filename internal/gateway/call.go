@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -291,7 +292,32 @@ func (s *Service) succeedCall(state callState, usage model.Usage, responseID str
 
 func (s *Service) failProviderCall(state callState, err error, upstream time.Duration) error {
 	mapped := mapProviderError(err)
+	s.logger.WarnContext(
+		state.ctx,
+		"Provider 调用失败",
+		"provider", state.route.Backend.Provider,
+		"backend_id", state.route.Backend.ID,
+		"operation", state.operation,
+		"error_code", mapped.Code,
+		"cause", safeProviderFailure(err),
+	)
 	return s.finishFailed(state, mapped, upstream)
+}
+
+func safeProviderFailure(err error) string {
+	var upstream *provider.Error
+	switch {
+	case errors.As(err, &upstream):
+		return fmt.Sprintf("provider status=%d code=%s", upstream.Status, upstream.Code)
+	case errors.Is(err, provider.ErrInvalidRequest):
+		return "provider request invalid"
+	case errors.Is(err, provider.ErrImageTooLarge):
+		return "provider image too large"
+	case errors.Is(err, provider.ErrInvalidResponse), errors.Is(err, provider.ErrUnsupportedImage):
+		return err.Error()
+	default:
+		return "provider unavailable"
+	}
 }
 
 func (s *Service) failCall(state callState, err error) error {

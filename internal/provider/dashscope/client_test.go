@@ -32,13 +32,40 @@ func TestClientOperations(t *testing.T) {
 	}
 	assertRequest(t, transport.last(), "/v1/responses", "qwen-up", false, "resp_previous")
 
-	image, err := client.Image(context.Background(), provider.Request{Body: json.RawMessage(`{"prompt":"cat"}`), UpstreamModel: "wanx-up"})
-	if err != nil || image.ImageCount != 1 || image.RawImageBytes != 3 {
+	image, err := client.Image(context.Background(), provider.Request{
+		Body:          json.RawMessage(`{"prompt":"cat","n":1,"size":"1024x1024","prompt_extend":false,"watermark":false,"seed":7}`),
+		UpstreamModel: "qwen-image-up",
+	})
+	if err != nil || image.ImageCount != 1 || image.RawImageBytes != 3 || image.UpstreamID != "image_request" {
 		t.Fatalf("Image() = %#v, %v", image, err)
 	}
-	assertRequest(t, transport.last(), "/v1/images/generations", "wanx-up", false, "")
-	if transport.last().authorization != "Bearer dashscope-key" {
-		t.Fatalf("Authorization = %q", transport.last().authorization)
+	imageRecord := transport.find("/api/v1" + imageGenerationPath)
+	assertImageRequest(t, imageRecord, "qwen-image-up")
+	if imageRecord.authorization != "Bearer dashscope-key" {
+		t.Fatalf("Authorization = %q", imageRecord.authorization)
+	}
+	if imageRecord.accept != "application/json" {
+		t.Fatalf("Accept = %q", imageRecord.accept)
+	}
+}
+
+func TestNativeImageURL(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]string{
+		"https://dashscope.aliyuncs.com/compatible-mode/v1": "https://dashscope.aliyuncs.com/api/v1" + imageGenerationPath,
+		"https://workspace.example/api/v1":                  "https://workspace.example/api/v1" + imageGenerationPath,
+		"http://mock/dashscope/v1":                          "http://mock/dashscope/api/v1" + imageGenerationPath,
+		"https://custom.example/root":                       "https://custom.example/root/api/v1" + imageGenerationPath,
+	}
+	for input, want := range tests {
+		got, err := nativeImageURL(input)
+		if err != nil || got != want {
+			t.Errorf("nativeImageURL(%q) = %q, %v, want %q", input, got, err, want)
+		}
+	}
+	if _, err := nativeImageURL("://"); err == nil {
+		t.Fatal("nativeImageURL() 应拒绝非法 URL")
 	}
 }
 
@@ -88,6 +115,7 @@ func TestClientValidationAndFailures(t *testing.T) {
 		func(options *Options) { options.HTTPClient = nil },
 		func(options *Options) { options.MaxImages = 0 },
 		func(options *Options) { options.MaxImageBytes = 0 },
+		func(options *Options) { options.BaseURL = "://" },
 	} {
 		options := valid
 		mutate(&options)
@@ -102,6 +130,12 @@ func TestClientValidationAndFailures(t *testing.T) {
 	}
 	if _, err := client.ChatStream(context.Background(), invalid); !errors.Is(err, provider.ErrInvalidRequest) {
 		t.Fatalf("ChatStream(invalid) error = %v", err)
+	}
+	for _, body := range []string{`{`, `{"prompt":""}`, `{"prompt":"cat","n":0}`} {
+		_, err := client.Image(context.Background(), provider.Request{Body: json.RawMessage(body), UpstreamModel: "image-model"})
+		if !errors.Is(err, provider.ErrInvalidRequest) {
+			t.Errorf("Image(%s) error = %v", body, err)
+		}
 	}
 
 	for status, retryable := range map[int]bool{401: false, 429: true, 500: true} {
@@ -120,6 +154,13 @@ func TestClientValidationAndFailures(t *testing.T) {
 	client = newClient(t, &mockTransport{body: "not-json"})
 	if _, err := client.Chat(context.Background(), provider.Request{Body: json.RawMessage(`{}`), UpstreamModel: "model"}); !errors.Is(err, provider.ErrInvalidResponse) {
 		t.Fatalf("Chat(malformed) error = %v", err)
+	}
+	if _, err := client.Image(context.Background(), provider.Request{Body: json.RawMessage(`{"prompt":"cat"}`), UpstreamModel: "model"}); !errors.Is(err, provider.ErrInvalidResponse) {
+		t.Fatalf("Image(malformed) error = %v", err)
+	}
+	client = newClient(t, &mockTransport{body: `{}`})
+	if _, err := client.Image(context.Background(), provider.Request{Body: json.RawMessage(`{"prompt":"cat"}`), UpstreamModel: "model"}); !errors.Is(err, provider.ErrInvalidResponse) {
+		t.Fatalf("Image(missing image) error = %v", err)
 	}
 	client = newClient(t, &mockTransport{err: errors.New("transport")})
 	_, err := client.Chat(context.Background(), provider.Request{Body: json.RawMessage(`{}`), UpstreamModel: "model"})
@@ -145,6 +186,7 @@ type recordedRequest struct {
 	path          string
 	body          []byte
 	authorization string
+	accept        string
 }
 
 type mockTransport struct {
@@ -156,17 +198,28 @@ type mockTransport struct {
 }
 
 func (transport *mockTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	body, err := io.ReadAll(request.Body)
-	if err != nil {
-		return nil, err
+	var body []byte
+	if request.Body != nil {
+		var err error
+		body, err = io.ReadAll(request.Body)
+		if err != nil {
+			return nil, err
+		}
 	}
 	transport.mu.Lock()
 	transport.records = append(transport.records, recordedRequest{
 		path: request.URL.Path, body: body, authorization: request.Header.Get("Authorization"),
+		accept: request.Header.Get("Accept"),
 	})
 	transport.mu.Unlock()
 	if transport.err != nil {
 		return nil, transport.err
+	}
+	if request.Method == http.MethodGet && request.URL.Path == "/generated.png" {
+		return &http.Response{
+			StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"image/png"}},
+			Body: io.NopCloser(strings.NewReader("img")), Request: request,
+		}, nil
 	}
 	status := transport.status
 	if status == 0 {
@@ -198,8 +251,8 @@ func (transport *mockTransport) response(path string, body []byte) (string, stri
 		return `{"id":"chat_up","usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`, "application/json"
 	case "/v1/responses":
 		return `{"id":"resp_up","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`, "application/json"
-	case "/v1/images/generations":
-		return `{"data":[{"b64_json":"aW1n"}]}`, "application/json"
+	case "/api/v1/services/aigc/multimodal-generation/generation":
+		return `{"request_id":"image_request","output":{"choices":[{"message":{"content":[{"image":"https://dash.test/generated.png"}]}}]},"usage":{"image_count":1}}`, "application/json"
 	default:
 		return `{}`, "application/json"
 	}
@@ -209,6 +262,17 @@ func (transport *mockTransport) last() recordedRequest {
 	transport.mu.Lock()
 	defer transport.mu.Unlock()
 	return transport.records[len(transport.records)-1]
+}
+
+func (transport *mockTransport) find(path string) recordedRequest {
+	transport.mu.Lock()
+	defer transport.mu.Unlock()
+	for _, record := range transport.records {
+		if record.path == path {
+			return record
+		}
+	}
+	return recordedRequest{}
 }
 
 func assertRequest(t *testing.T, record recordedRequest, path, model string, stream bool, previous string) {
@@ -225,5 +289,33 @@ func assertRequest(t *testing.T, record recordedRequest, path, model string, str
 	}
 	if previous != "" && body["previous_response_id"] != previous {
 		t.Fatalf("previous_response_id = %#v", body["previous_response_id"])
+	}
+}
+
+func assertImageRequest(t *testing.T, record recordedRequest, model string) {
+	t.Helper()
+	if record.path != "/api/v1"+imageGenerationPath {
+		t.Fatalf("image path = %q", record.path)
+	}
+	var body struct {
+		Model string `json:"model"`
+		Input struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content []struct {
+					Text string `json:"text"`
+				} `json:"content"`
+			} `json:"messages"`
+		} `json:"input"`
+		Parameters map[string]any `json:"parameters"`
+	}
+	if err := json.Unmarshal(record.body, &body); err != nil {
+		t.Fatalf("image body = %s: %v", record.body, err)
+	}
+	if body.Model != model || len(body.Input.Messages) != 1 || body.Input.Messages[0].Role != "user" ||
+		len(body.Input.Messages[0].Content) != 1 || body.Input.Messages[0].Content[0].Text != "cat" ||
+		body.Parameters["size"] != "1024*1024" || body.Parameters["n"] != float64(1) ||
+		body.Parameters["prompt_extend"] != false || body.Parameters["watermark"] != false || body.Parameters["seed"] != float64(7) {
+		t.Fatalf("image request body = %s", record.body)
 	}
 }

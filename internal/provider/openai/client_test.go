@@ -55,6 +55,9 @@ func TestClientSyncOperations(t *testing.T) {
 	if record.authorization != "Bearer test-key" {
 		t.Fatalf("Authorization = %q", record.authorization)
 	}
+	if record.userAgent != userAgent {
+		t.Fatalf("User-Agent = %q, want %q", record.userAgent, userAgent)
+	}
 }
 
 func TestClientStreams(t *testing.T) {
@@ -188,6 +191,7 @@ type requestRecord struct {
 	path          string
 	body          []byte
 	authorization string
+	userAgent     string
 }
 
 type recordingTransport struct {
@@ -205,6 +209,7 @@ func (transport *recordingTransport) RoundTrip(request *http.Request) (*http.Res
 	transport.mu.Lock()
 	transport.records = append(transport.records, requestRecord{
 		path: request.URL.Path, body: body, authorization: request.Header.Get("Authorization"),
+		userAgent: request.Header.Get("User-Agent"),
 	})
 	transport.mu.Unlock()
 	if transport.err != nil {

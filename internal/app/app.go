@@ -88,6 +88,7 @@ func Build(ctx context.Context, bootstrapPath string, logger *slog.Logger) (*App
 		config.NewManager(snapshot),
 		telemetry.Transport(http.DefaultTransport),
 		gateway.WithRecorder(telemetry.Metrics()),
+		gateway.WithLogger(logger),
 	)
 	if err != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,27 @@ import (
 	"github.com/deigmata-paideias/gateway/internal/provider"
 	"github.com/deigmata-paideias/gateway/internal/store/sqlite"
 )
+
+func TestSafeProviderFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err  error
+		want string
+	}{
+		{&provider.Error{Status: 429, Code: "upstream_error", Err: errors.New("secret detail")}, "provider status=429 code=upstream_error"},
+		{fmt.Errorf("wrapped: %w", provider.ErrInvalidRequest), "provider request invalid"},
+		{provider.ErrImageTooLarge, "provider image too large"},
+		{fmt.Errorf("%w: 图片 content-type 无效", provider.ErrInvalidResponse), "provider: invalid response: 图片 content-type 无效"},
+		{provider.ErrUnsupportedImage, "provider: unsupported image source"},
+		{errors.New("https://signed.example/?secret=value"), "provider unavailable"},
+	}
+	for _, test := range tests {
+		if got := safeProviderFailure(test.err); got != test.want {
+			t.Errorf("safeProviderFailure(%v) = %q, want %q", test.err, got, test.want)
+		}
+	}
+}
 
 func TestSyncCallsQueriesAndAudit(t *testing.T) {
 	t.Parallel()

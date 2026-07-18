@@ -6,7 +6,7 @@ backends:
     provider: openai
     base_url: https://ai.112102.xyz/v1
     credential_id: openai-quickstart
-    capabilities: [chat, responses, image]
+    capabilities: [chat]
     timeouts:
       request: 180s
       stream_idle: 60s
@@ -26,27 +26,23 @@ routes:
     active_backend: openai-quickstart
     targets:
       - backend_id: openai-quickstart
-        upstream_model: gpt-4.1-mini
+        upstream_model: qwen3.6-flash
       - backend_id: dashscope-quickstart
         upstream_model: qwen-plus
   - id: responses-default
     operation: responses
     model_alias: responses-default
-    active_backend: openai-quickstart
+    active_backend: dashscope-quickstart
     targets:
-      - backend_id: openai-quickstart
-        upstream_model: gpt-4.1-mini
       - backend_id: dashscope-quickstart
         upstream_model: qwen-plus
   - id: image-default
     operation: image
     model_alias: image-default
-    active_backend: openai-quickstart
+    active_backend: dashscope-quickstart
     targets:
-      - backend_id: openai-quickstart
-        upstream_model: gpt-image-1
       - backend_id: dashscope-quickstart
-        upstream_model: wan2.1-t2i-turbo
+        upstream_model: qwen-image-2.0
 
 audit:
   retention: 168h

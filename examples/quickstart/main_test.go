@@ -93,6 +93,18 @@ func TestRunRejectsInvalidProvider(t *testing.T) {
 	if err == nil {
 		t.Fatal("run() error = nil")
 	}
+	for _, operation := range []string{"image"} {
+		err := run(context.Background(), options{provider: "openai", operation: operation}, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "未提供图片模型") {
+			t.Fatalf("run(openai, %s) error = %v", operation, err)
+		}
+	}
+	for _, operation := range []string{"responses", "all"} {
+		err := run(context.Background(), options{provider: "openai", operation: operation}, &bytes.Buffer{})
+		if err == nil || !strings.Contains(err.Error(), "未实现 Responses API") {
+			t.Fatalf("run(openai, %s) error = %v", operation, err)
+		}
+	}
 }
 
 func TestPrintImageSummary(t *testing.T) {

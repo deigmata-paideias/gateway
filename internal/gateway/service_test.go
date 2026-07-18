@@ -738,7 +738,7 @@ func gatewayResponse(path string, body []byte, scenario string) (string, string)
 			id = ""
 		}
 		return `{"id":"` + id + `","object":"response","created_at":1,"status":"completed","model":"gpt-response","output":[],"parallel_tool_calls":false,"tool_choice":"auto","tools":[],"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`, "application/json"
-	case "/v1/images/generations":
+	case "/v1/images/generations", "/api/v1/services/aigc/multimodal-generation/generation":
 		return `{"created":1,"data":[{"b64_json":"aW1n"}]}`, "application/json"
 	default:
 		return `{}`, "application/json"

@@ -19,6 +19,8 @@ chmod 600 examples/quickstart/secrets/ai_gateway_master_key
 
 默认 OpenAI Base URL 是 `https://ai.112102.xyz/v1`，DashScope Base URL 是 `https://dashscope.aliyuncs.com/compatible-mode/v1`。模型映射位于 [gateway.yaml](gateway.yaml)，可按账号实际可用模型调整。
 
+2026-07-18 的实际 `/models` 查询显示，该 OpenAI 兼容 Endpoint 的当前凭证只开放文本模型；直接调用 `/v1/responses` 还会返回 `not implemented`。因此 Quickstart 只使用 `qwen3.6-flash` 验证 OpenAI Chat，不把该 Backend 加入 Responses 或 Image Route。核心网关仍通过 OpenAI 官方 Go SDK 支持标准 OpenAI Responses API，并由契约测试覆盖。DashScope 使用 `qwen-plus` 和 `qwen-image-2.0` 验证 Chat、Responses 与 Image。此结果具有账号和时间范围，模型授权变化后应重新查询并更新 YAML。
+
 ## 2. 构建并启动
 
 ```bash
@@ -46,16 +48,14 @@ go run ./examples/quickstart -provider openai -operation chat
 go run ./examples/quickstart -provider dashscope -operation chat
 ```
 
-Responses 和 Image 必须显式选择：
+Responses 和 Image 必须显式选择 DashScope：
 
 ```bash
-go run ./examples/quickstart -provider openai -operation responses
 go run ./examples/quickstart -provider dashscope -operation responses
-go run ./examples/quickstart -provider openai -operation image -prompt '一只像素风格的蓝色小鸟'
 go run ./examples/quickstart -provider dashscope -operation image -prompt '一只像素风格的蓝色小鸟'
 ```
 
-`-operation image` 会产生 Provider 费用。客户端不会打印完整 Base64，只输出解码后的图片字节数和 SHA-256。`-operation all` 会依次调用三种能力。
+`-operation image` 会产生 Provider 费用。客户端不会打印完整 Base64，只输出解码后的图片字节数和 SHA-256。当前 `-operation all` 只适用于 DashScope；客户端会在调用前拒绝该 OpenAI 兼容 Endpoint 不支持的 Responses 与 Image 组合。
 
 每次运行客户端都会创建一个独立 Gateway Token，切换 Route 时使用当前 Revision 和 `If-Match`，因此同时演示了 Token 审计和动态 Backend API。
 

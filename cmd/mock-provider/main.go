@@ -44,7 +44,7 @@ func main() {
 	mux.HandleFunc("POST /openai/v1/responses", server.responses)
 	mux.HandleFunc("POST /dashscope/v1/responses", server.responses)
 	mux.HandleFunc("POST /openai/v1/images/generations", server.image)
-	mux.HandleFunc("POST /dashscope/v1/images/generations", server.image)
+	mux.HandleFunc("POST /dashscope/api/v1/services/aigc/multimodal-generation/generation", server.image)
 	slog.Info("mock provider 启动", "address", *address)
 	if err := http.ListenAndServe(*address, mux); err != nil {
 		slog.Error("mock provider 退出", "error", err)
@@ -202,12 +202,25 @@ func (s *mockServer) image(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	item := map[string]any{"b64_json": base64.StdEncoding.EncodeToString(onePixelPNG), "revised_prompt": "mock prompt"}
 	if strings.HasPrefix(r.URL.Path, "/dashscope/") {
-		item = map[string]any{"url": "http://" + r.Host + "/objects/fixed.png", "revised_prompt": "mock prompt"}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"request_id": s.id("image_mock_"),
+			"output": map[string]any{"choices": []any{map[string]any{
+				"finish_reason": "stop",
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": []any{map[string]string{"image": "http://" + r.Host + "/objects/fixed.png"}},
+				},
+			}}},
+			"usage": map[string]any{"image_count": 1, "width": 1, "height": 1},
+		})
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"created": time.Now().Unix(), "data": []any{item},
+		"created": time.Now().Unix(),
+		"data": []any{map[string]any{
+			"b64_json": base64.StdEncoding.EncodeToString(onePixelPNG), "revised_prompt": "mock prompt",
+		}},
 		"usage": map[string]any{"input_tokens": 2, "output_tokens": 1, "total_tokens": 3},
 	})
 }

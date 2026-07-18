@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,6 +26,7 @@ type Service struct {
 	configs   *config.Manager
 	transport http.RoundTripper
 	recorder  Recorder
+	logger    *slog.Logger
 }
 
 type Recorder interface {
@@ -50,6 +52,14 @@ func WithRecorder(recorder Recorder) Option {
 	}
 }
 
+func WithLogger(logger *slog.Logger) Option {
+	return func(service *Service) {
+		if logger != nil {
+			service.logger = logger
+		}
+	}
+}
+
 type noopRecorder struct{}
 
 func (noopRecorder) RecordProviderCall(context.Context, string, string, string, string, time.Duration, model.Usage) {
@@ -71,7 +81,8 @@ func New(
 		transport = http.DefaultTransport
 	}
 	service := &Service{
-		store: store, cipher: cipher, configs: configs, transport: transport, recorder: noopRecorder{},
+		store: store, cipher: cipher, configs: configs, transport: transport,
+		recorder: noopRecorder{}, logger: slog.New(slog.DiscardHandler),
 	}
 	for _, option := range options {
 		option(service)

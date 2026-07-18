@@ -59,6 +59,12 @@ func run(ctx context.Context, cfg options, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if cfg.provider == "openai" && containsOperation(operations, "responses") {
+		return errors.New("Bundled OpenAI Endpoint 未实现 Responses API；请使用 -provider dashscope")
+	}
+	if cfg.provider == "openai" && containsOperation(operations, "image") {
+		return errors.New("Bundled OpenAI Endpoint 未提供图片模型；请使用 -provider dashscope")
+	}
 	c := client{
 		http:     &http.Client{Timeout: 5 * time.Minute},
 		adminURL: strings.TrimRight(cfg.adminURL, "/"),
@@ -80,6 +86,15 @@ func run(ctx context.Context, cfg options, output io.Writer) error {
 		}
 	}
 	return nil
+}
+
+func containsOperation(operations []string, target string) bool {
+	for _, operation := range operations {
+		if operation == target {
+			return true
+		}
+	}
+	return false
 }
 
 func selectedOperations(operation string) ([]string, error) {
@@ -161,7 +176,7 @@ func (c client) invoke(ctx context.Context, token, operation, prompt string, out
 		request = map[string]any{"model": "responses-default", "input": prompt}
 	case "image":
 		path = "/v1/images/generations"
-		request = map[string]any{"model": "image-default", "prompt": prompt, "n": 1}
+		request = map[string]any{"model": "image-default", "prompt": prompt, "n": 1, "size": "512x512"}
 	default:
 		return fmt.Errorf("不支持的 operation %q", operation)
 	}
