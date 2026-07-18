@@ -1,0 +1,46 @@
+api_version: gateway.ai/v1alpha2
+kind: BootstrapConfig
+
+listeners:
+  data: 0.0.0.0:8080
+  admin: 0.0.0.0:9090
+  operations: 0.0.0.0:8081
+
+storage:
+  driver: sqlite
+  path: /var/lib/ai-gateway/gateway.db
+  max_open_connections: 8
+  busy_timeout: 5s
+  journal_mode: WAL
+  synchronous: FULL
+
+secrets:
+  master_key_file: /run/secrets/ai_gateway_master_key
+  master_key_version: 1
+
+credential_imports:
+  - credential_id: openai-quickstart
+    provider: openai
+    source_file: /run/secrets/openai_api_key
+    import_policy: if_missing
+  - credential_id: dashscope-quickstart
+    provider: dashscope
+    source_file: /run/secrets/dashscope_api_key
+    import_policy: if_missing
+
+initial_gateway_config: /etc/ai-gateway/gateway.yaml
+
+observability:
+  otel:
+    enabled: false
+    service_name: ai-gateway-quickstart
+    service_version: 0.1.0
+    otlp_http_endpoint: http://127.0.0.1:4318
+    insecure: true
+    metric_export_interval: 10s
+    trace_sample_ratio: 0.1
+    cardinality_limit: 2000
+
+health:
+  ready_timeout: 500ms
+  shutdown_grace_period: 30s

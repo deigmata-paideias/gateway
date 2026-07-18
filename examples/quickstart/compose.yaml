@@ -1,0 +1,47 @@
+name: ai-gateway-quickstart
+
+services:
+  gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+      target: gateway
+    image: ai-gateway:quickstart
+    command:
+      - serve
+      - --bootstrap-config=/etc/ai-gateway/bootstrap.yaml
+    ports:
+      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:19090:9090"
+      - "127.0.0.1:18081:8081"
+    volumes:
+      - quickstart-data:/var/lib/ai-gateway
+      - ./bootstrap.yaml:/etc/ai-gateway/bootstrap.yaml:ro
+      - ./gateway.yaml:/etc/ai-gateway/gateway.yaml:ro
+    secrets:
+      - ai_gateway_master_key
+      - openai_api_key
+      - dashscope_api_key
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - /app/ai-gateway
+        - healthcheck
+        - --url=http://127.0.0.1:8081/readyz
+        - --timeout=2s
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  quickstart-data:
+
+secrets:
+  ai_gateway_master_key:
+    file: ${AI_GATEWAY_MASTER_KEY_FILE:-./secrets/ai_gateway_master_key}
+  openai_api_key:
+    file: ${OPENAI_API_KEY_FILE:-./secrets/openai_api_key}
+  dashscope_api_key:
+    file: ${DASHSCOPE_API_KEY_FILE:-./secrets/dashscope_api_key}

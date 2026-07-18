@@ -1,0 +1,68 @@
+api_version: gateway.ai/v1alpha2
+kind: GatewayConfig
+
+backends:
+  - id: openai-quickstart
+    provider: openai
+    base_url: https://ai.112102.xyz/v1
+    credential_id: openai-quickstart
+    capabilities: [chat, responses, image]
+    timeouts:
+      request: 180s
+      stream_idle: 60s
+  - id: dashscope-quickstart
+    provider: dashscope
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    credential_id: dashscope-quickstart
+    capabilities: [chat, responses, image]
+    timeouts:
+      request: 180s
+      stream_idle: 60s
+
+routes:
+  - id: chat-default
+    operation: chat
+    model_alias: chat-default
+    active_backend: openai-quickstart
+    targets:
+      - backend_id: openai-quickstart
+        upstream_model: gpt-4.1-mini
+      - backend_id: dashscope-quickstart
+        upstream_model: qwen-plus
+  - id: responses-default
+    operation: responses
+    model_alias: responses-default
+    active_backend: openai-quickstart
+    targets:
+      - backend_id: openai-quickstart
+        upstream_model: gpt-4.1-mini
+      - backend_id: dashscope-quickstart
+        upstream_model: qwen-plus
+  - id: image-default
+    operation: image
+    model_alias: image-default
+    active_backend: openai-quickstart
+    targets:
+      - backend_id: openai-quickstart
+        upstream_model: gpt-image-1
+      - backend_id: dashscope-quickstart
+        upstream_model: wan2.1-t2i-turbo
+
+audit:
+  retention: 168h
+  cleanup_interval: 1h
+  abandoned_after: 15m
+  cleanup_batch_size: 1000
+
+responses:
+  binding_retention: 168h
+
+limits:
+  request_body_bytes: 2097152
+  max_backends: 10
+  max_routes: 10
+  chat_concurrency: 16
+  responses_concurrency: 16
+  image_concurrency: 2
+  images_per_request: 1
+  image_raw_bytes_per_response: 33554432

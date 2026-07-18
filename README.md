@@ -60,6 +60,10 @@ docker compose -f deploy/compose.yaml up --build --detach --wait
 docker compose -f deploy/compose.yaml down
 ```
 
+## Quickstart Example
+
+[Quickstart Example](examples/quickstart/README.md) 提供独立 Compose、YAML Schema 配置和 Go 客户端，可连接 OpenAI 兼容 Endpoint 与 DashScope，并演示 Gateway Token、动态 Backend 切换、Chat、Responses 和 Image Base64。Provider Key 通过 Docker Secret 注入，根级 `.dockerignore` 会阻止 Secret 进入构建上下文。
+
 ## 质量门禁
 
 GitHub Actions 是本项目的标准验证环境：
@@ -68,6 +72,7 @@ GitHub Actions 是本项目的标准验证环境：
 - `go test -race -count=1 ./...`。
 - 手写生产代码语句覆盖率不低于 90%。
 - Docker Compose Mock E2E 覆盖两个 Provider 的同步、SSE、Responses 续接、图片 Base64、动态切换、错误注入、SQLite 重启恢复、Token 轮换/吊销、审计和 OTel 信号。
+- Quickstart Compose Schema 静态校验与客户端契约测试。
 
 本地需要验证时可运行 `make verify`；Mock E2E 使用 `make e2e`。两者都可能启动或访问本机开发资源，请按自身环境决定是否执行。
 

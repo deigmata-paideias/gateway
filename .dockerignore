@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vscode
+build
+build-logs
+coverage.out
+*.db
+*.db-shm
+*.db-wal
+deploy/secrets
+examples/quickstart/secrets
